@@ -8,15 +8,18 @@ function getContextualIdentities() {
 
 function updateButtons() {
 	getContextualIdentities().then(identities => getCurrentWindowTabs().then(tabs => {
-		let cookieStoreIds = [...new Set(identities.map(i=>i.cookieStoreId).concat('firefox-default'))];
-		cookieStoreIds.forEach(cookieStoreId => {
+		let containers = [...new Set(identities.concat({
+			cookieStoreId: 'firefox-default',
+			iconUrl: 'resource://usercontext-content/circle.svg',
+		}))];
+		containers.forEach(container => {
 			// add missing buttons
-			let url = `tabcontainertoggle://${cookieStoreId}`;
-			if (tabs.some(t=>t.cookieStoreId === cookieStoreId) && tabs.every(t=>t.url !== url)) {
+			let url = `./faviconPages/${container.iconUrl.split('/')[3].split('\.')[0]}.html?tabcontainerhackytoggle=${container.cookieStoreId}`;
+			if (tabs.some(t=>t.cookieStoreId === container.cookieStoreId) && tabs.every(t=>!t.url.endsWith(url.substring(1)))) {
 				browser.tabs.create({
 					active: false,
 					url: url,
-					cookieStoreId: cookieStoreId,
+					cookieStoreId: container.cookieStoreId,
 					pinned: true,
 				});
 			}
@@ -34,11 +37,10 @@ browser.tabs.onCreated.addListener(function(tab) {
 
 browser.tabs.onActivated.addListener((activeInfo) => {
 	browser.tabs.get(activeInfo.tabId).then(tab => {
-		let split = tab.url.split('//');
-		let url = split[0];
-		let cookieStoreId = split[1];
-
-		if (url === 'tabcontainertoggle:') {
+		// url looks like moz-extension://f4943e27-1d04-4b64-9071-245498d811f5/testicon.html?tabcontainerhackytoggle=fdssdf
+		if (tab.url.startsWith('moz-extension://') && tab.url.includes('tabcontainerhackytoggle=')) {
+			let cookieStoreId = tab.url.split('tabcontainerhackytoggle=')[1].split('&')[0];
+			console.log(`should toggle ${cookieStoreId}`);
 			getCurrentWindowTabs().then(tabs => {
 				relevantTabs = tabs.filter(t=>t.cookieStoreId === cookieStoreId).filter(t=>t.id !== activeInfo.tabId);
 				let showOrHide = relevantTabs.some(t=>t.hidden) ? browser.tabs.show : browser.tabs.hide;
